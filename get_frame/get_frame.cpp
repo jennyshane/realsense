@@ -12,10 +12,17 @@ struct rspoint{
 	GLfloat s, t;
 };
 
+struct app_state{
+	GLfloat yaw, pitch;
+	GLfloat last_x, last_y;
+	bool click;
+	app_state(): yaw(15.0), pitch(15.0), last_x(0.0), last_y(0.0), click(false){}
+};
 int screensize=800;
 
 int main(void){
 
+	app_state state;
 	if(initSDL(screensize)==false){
 		return 1;
 	}
@@ -75,7 +82,7 @@ int main(void){
 	//Create matrices
 	HomogMatrix p_matrix=HomogMatrix().view_frustum(deg2rad(60), 1.0, 0.01, 10);
 	HomogMatrix m_matrix=HomogMatrix().rotate_y(deg2rad(180)).rotate_z(deg2rad(180));
-	HomogMatrix o_matrix=HomogMatrix();
+	HomogMatrix o_matrix=HomogMatrix().rotate_x(deg2rad(state.pitch)).rotate_y(deg2rad(state.yaw));
 	
 	//get info about the color frame
 	auto format=color.get_profile().format();
@@ -113,6 +120,8 @@ int main(void){
 	glVertexAttribPointer(texcoord, 2, GL_FLOAT, GL_FALSE, sizeof(rspoint), (void*)(offsetof(rspoint, s)));
 	
 
+	int n_vertices=points.size();
+	rspoint* point_array=(rspoint*)malloc(n_vertices*sizeof(rspoint));
 	//render
 	SDL_Event event;
 	bool quit=false;
@@ -120,6 +129,22 @@ int main(void){
 		while(SDL_PollEvent(&event)){
 			if(SDL_QUIT==event.type){
 				quit=true;
+			}else if(SDL_MOUSEMOTION==event.type){
+				if(state.click){
+					state.yaw-=(state.last_x-event.motion.x);
+					state.yaw=(state.yaw<-120)?-120:state.yaw;
+					state.yaw=(state.yaw>120)?120:state.yaw;
+					state.pitch-=(state.last_y-event.motion.y);
+					state.pitch=(state.pitch<-120)?-120:state.pitch;
+					state.pitch=(state.pitch>120)?120:state.pitch;
+					o_matrix=HomogMatrix().rotate_x(deg2rad(state.pitch)).rotate_y(deg2rad(state.yaw));
+				}
+				state.last_x=event.motion.x;
+				state.last_y=event.motion.y;
+			}else if(SDL_MOUSEBUTTONDOWN==event.type and event.button.button==SDL_BUTTON_LEFT){
+				state.click=true;
+			}else if(SDL_MOUSEBUTTONUP==event.type and event.button.button==SDL_BUTTON_LEFT){
+				state.click=false;
 			}
 		}
 
@@ -129,8 +154,7 @@ int main(void){
 		color=frames.get_color_frame(); 
 		pc.map_to(color);
 
-		int n_vertices=points.size();
-		rspoint* point_array=(rspoint*)malloc(n_vertices*sizeof(rspoint));
+		n_vertices=points.size();
 		const rs2::vertex *vertices=points.get_vertices();
 		const rs2::texture_coordinate *texture_coords=points.get_texture_coordinates();
 		int npoints=0;
