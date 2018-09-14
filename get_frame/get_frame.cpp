@@ -22,21 +22,21 @@ int main(void){
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
+	//setup realsense camera
 	rs2::context ctx;
 	auto devices=ctx.query_devices(); //get available devices
 	std::cout<<"There are "<<devices.size()<<" devices connected."<<std::endl; //print number of devices
 	for (auto dev: devices){
 		std::cout<<dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)<<std::endl; //print serial number of each
 	}
-
 	rs2::device dev;
-
-	if (devices.size()>0){
+	if (devices.size()>0){ 
 		dev=devices.front(); //get first device
 	}else{
 		return 1;
 	}
 
+	//setup realsense pipeline 
 	rs2::pipeline p;
 	rs2::config c;
 	c.enable_device(dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
@@ -45,20 +45,19 @@ int main(void){
 	rs2::pointcloud pc;
 	rs2::points points;
 
+	//NOTE: We need to do this procedure at least twice or the texture coordinates will be zero
 	auto frames=p.wait_for_frames();
 	auto depth=frames.get_depth_frame();
 	points=pc.calculate(depth);
 	auto color=frames.get_color_frame(); 
 	pc.map_to(color);
 
-
-	for (int i=0; i<10; i++){
-		frames=p.wait_for_frames();
-		depth=frames.get_depth_frame();
-		points=pc.calculate(depth);
-		color=frames.get_color_frame(); 
-		pc.map_to(color);
-	}
+	frames=p.wait_for_frames();
+	depth=frames.get_depth_frame();
+	points=pc.calculate(depth);
+	color=frames.get_color_frame(); 
+	pc.map_to(color);
+	
 	//create shaders
 	GLuint v_shader, f_shader;
 	GLuint program;
@@ -83,7 +82,7 @@ int main(void){
 	HomogMatrix p_matrix=HomogMatrix().view_frustum(deg2rad(60), 1.0, 0.01, 10);
 	//HomogMatrix m_matrix=HomogMatrix().rotate_y(deg2rad(180)).rotate_z(deg2rad(180));
 	//HomogMatrix o_matrix=HomogMatrix().rotate_y(deg2rad(180)).translate(0, 0, 0.0f);
-	HomogMatrix m_matrix=HomogMatrix().rotate_z(deg2rad(180));
+	HomogMatrix m_matrix=HomogMatrix().rotate_y(deg2rad(180)).rotate_z(deg2rad(180));
 	HomogMatrix o_matrix=HomogMatrix().scale(-1, 1, 1).translate(0, 0, -0.2f);
 	
 	//get info about the color frame

@@ -1,16 +1,11 @@
-OBJS=get_frame.o matrices.o utils.o
+OBJS=get_frame.o 
 CC=g++
-CFLAGS=-std=c++0x -c
-LFLAGS=-lGL -lGLEW -lSDL -lrealsense2
+CFLAGS=-std=c++0x -c -I/home/jenny/prac/opengl/include
+LFLAGS=-L/home/jenny/prac/opengl/lib -lGL -lGLEW -lSDL -lrealsense2 -lGLutils -lmatrices
 
 get_frame: $(OBJS)
 	$(CC) $(OBJS) $(LFLAGS) -oget_frame
 
-get_frame.o : get_frame.cpp utils.h matrices.h 
+get_frame.o : get_frame.cpp 
 	$(CC) $(CFLAGS) get_frame.cpp
 
-utils.o : utils.cpp utils.h 
-	$(CC) $(CFLAGS) utils.cpp
-
-matrices.o : matrices.cpp matrices.h 
-	$(CC) $(CFLAGS) matrices.cpp
