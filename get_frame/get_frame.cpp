@@ -51,12 +51,6 @@ int main(void){
 	points=pc.calculate(depth);
 	auto color=frames.get_color_frame(); 
 	pc.map_to(color);
-
-	frames=p.wait_for_frames();
-	depth=frames.get_depth_frame();
-	points=pc.calculate(depth);
-	color=frames.get_color_frame(); 
-	pc.map_to(color);
 	
 	//create shaders
 	GLuint v_shader, f_shader;
@@ -80,10 +74,8 @@ int main(void){
 
 	//Create matrices
 	HomogMatrix p_matrix=HomogMatrix().view_frustum(deg2rad(60), 1.0, 0.01, 10);
-	//HomogMatrix m_matrix=HomogMatrix().rotate_y(deg2rad(180)).rotate_z(deg2rad(180));
-	//HomogMatrix o_matrix=HomogMatrix().rotate_y(deg2rad(180)).translate(0, 0, 0.0f);
 	HomogMatrix m_matrix=HomogMatrix().rotate_y(deg2rad(180)).rotate_z(deg2rad(180));
-	HomogMatrix o_matrix=HomogMatrix().scale(-1, 1, 1).translate(0, 0, -0.2f);
+	HomogMatrix o_matrix=HomogMatrix();
 	
 	//get info about the color frame
 	auto format=color.get_profile().format();
@@ -97,24 +89,8 @@ int main(void){
 	GLuint tex=0;
 	glGenTextures(1, &tex);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tex);
-	switch(format)
-	{
-		case RS2_FORMAT_RGB8:
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, color.get_data());
-			std::cout<<"RGB format"<<std::endl;
-			break;
-		case RS2_FORMAT_RGBA8:
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, color.get_data());
-			std::cout<<"RGBA format"<<std::endl;
-			break;
-		case RS2_FORMAT_Y8:
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, color.get_data());
-			std::cout<<"Y8 format"<<std::endl;
-			break;
-		default:
-			std::cout<<"Unsupported format?"<<std::endl;
-	}
+	glBindTexture(GL_TEXTURE_2D, tex); 
+	std::cout<<"RGB format"<<std::endl;
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -122,28 +98,11 @@ int main(void){
 
 	//get vertex data (3d point and texture coord) and put into vbo
 	glPointSize(2);
-	
-	int n_vertices=points.size();
-	rspoint* point_array=(rspoint*)malloc(n_vertices*sizeof(rspoint));
-	const rs2::vertex *vertices=points.get_vertices();
-	const rs2::texture_coordinate *texture_coords=points.get_texture_coordinates();
-	int j=0;
-	for(int i=0; i<n_vertices; ++i){
-		if (vertices[i].z){
-			point_array[j].x=vertices[i].x;
-			point_array[j].y=vertices[i].y;
-			point_array[j].z=vertices[i].z;
-			point_array[j].w=1.0f;
-			point_array[j].s=texture_coords[i].u;
-			point_array[j].t=texture_coords[i].v;
-			j++;
-		}
-	}
+
 	GLuint vao;
 	GLuint vbo;
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, j*sizeof(rspoint), point_array, GL_STATIC_DRAW); //note we only copy first j elements 
 	//create vao and setup vertex attrib data
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
@@ -152,6 +111,7 @@ int main(void){
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexAttribPointer(position, 4, GL_FLOAT, GL_FALSE, sizeof(rspoint), (void*)0);
 	glVertexAttribPointer(texcoord, 2, GL_FLOAT, GL_FALSE, sizeof(rspoint), (void*)(offsetof(rspoint, s)));
+	
 
 	//render
 	SDL_Event event;
@@ -162,6 +122,32 @@ int main(void){
 				quit=true;
 			}
 		}
+
+		frames=p.wait_for_frames();
+		depth=frames.get_depth_frame();
+		points=pc.calculate(depth);
+		color=frames.get_color_frame(); 
+		pc.map_to(color);
+
+		int n_vertices=points.size();
+		rspoint* point_array=(rspoint*)malloc(n_vertices*sizeof(rspoint));
+		const rs2::vertex *vertices=points.get_vertices();
+		const rs2::texture_coordinate *texture_coords=points.get_texture_coordinates();
+		int npoints=0;
+		for(int i=0; i<n_vertices; ++i){
+			if (vertices[i].z){
+				point_array[npoints].x=vertices[i].x;
+				point_array[npoints].y=vertices[i].y;
+				point_array[npoints].z=vertices[i].z;
+				point_array[npoints].w=1.0f;
+				point_array[npoints].s=texture_coords[i].u;
+				point_array[npoints].t=texture_coords[i].v;
+				npoints++;
+			}
+		}
+
+		glBufferData(GL_ARRAY_BUFFER, npoints*sizeof(rspoint), point_array, GL_DYNAMIC_DRAW); //note we only copy first npoints elements 
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, color.get_data());
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 		glUseProgram(program);
@@ -170,7 +156,7 @@ int main(void){
 		glUniformMatrix4fv(object_mat, 1, GL_FALSE, o_matrix.getData());
 		glUniform1i(tex_loc, 0);// because we called glActiveTexture(GL_TEXTURE0)
 		glBindVertexArray(vao);
-		glDrawArrays(GL_POINTS, 0, j);
+		glDrawArrays(GL_POINTS, 0, npoints);
 		SDL_GL_SwapBuffers();
 	}
 	SDL_Quit();
